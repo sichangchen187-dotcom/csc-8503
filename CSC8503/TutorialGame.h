@@ -52,6 +52,7 @@ namespace NCL {
 
 			GameWorld& world;
 			GameTechRendererInterface& renderer;
+
 			PhysicsSystem& physics;
 			Controller* controller;
 
