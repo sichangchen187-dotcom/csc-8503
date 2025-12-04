@@ -18,7 +18,8 @@ namespace NCL {
 			RayCollision() 
 			{
 				node			= nullptr;
-				rayDistance		= 0.0f;
+				rayDistance		= FLT_MAX;
+				
 			}
 		};
 

@@ -268,6 +268,17 @@ void PhysicsSystem::IntegrateAccel(float dt) {
 
 		linearVel += accel * dt; // integrate accel!
 		object->SetLinearVelocity(linearVel);
+		
+		// 角运动相关
+		Vector3 torque = object->GetTorque();
+		Vector3 angVel = object->GetAngularVelocity();
+
+		object->UpdateInertiaTensor(); // 更新张量的方向
+
+		Vector3 angAccel = object->GetInertiaTensor() * torque;
+
+		angVel += angAccel * dt; // 积分角加速度！
+		object->SetAngularVelocity(angVel);
 	}
 }
 
@@ -299,6 +310,19 @@ void PhysicsSystem::IntegrateVelocity(float dt)
 		// 
 		linearVel = linearVel * frameLinearDamping;
 		object->SetLinearVelocity(linearVel);
+		// 方向相关
+		Quaternion orientation = transform.GetOrientation();
+		Vector3 angVel = object->GetAngularVelocity();
+
+		orientation = orientation + (Quaternion(angVel * dt * 0.5f, 0.0f) * orientation);
+		orientation.Normalise();
+
+		transform.SetOrientation(orientation);
+
+		// 也阻尼角速度
+		float frameAngularDamping = 1.0f - (0.4f * dt);
+		angVel = angVel * frameAngularDamping;
+		object->SetAngularVelocity(angVel);
 	}
 }
 
