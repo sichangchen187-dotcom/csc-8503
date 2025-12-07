@@ -158,16 +158,16 @@ From this simple mechanism, we we build up gameplay interactions inside the
 OnCollisionBegin / OnCollisionEnd functions (removing health when hit by a 
 rocket launcher, gaining a point when the player hits the gold coin, and so on).
 */
-void PhysicsSystem::UpdateCollisionList() 
-{
-	for (std::set<CollisionDetection::CollisionInfo>::iterator i = allCollisions.begin(); i != allCollisions.end(); ) {
+void PhysicsSystem::UpdateCollisionList() {
+	for (std::set<CollisionDetection::CollisionInfo>::iterator
+		i = allCollisions.begin(); i != allCollisions.end();) {
+
 		if ((*i).framesLeft == numCollisionFrames) {
 			i->a->OnCollisionBegin(i->b);
 			i->b->OnCollisionBegin(i->a);
 		}
 
-		CollisionDetection::CollisionInfo& in = const_cast<CollisionDetection::CollisionInfo&>(*i);
-		in.framesLeft--;
+		(*i).framesLeft == (*i).framesLeft - 1;
 
 		if ((*i).framesLeft < 0) {
 			i->a->OnCollisionEnd(i->b);
@@ -198,8 +198,29 @@ to the collision set for later processing. The set will guarantee that
 a particular pair will only be added once, so objects colliding for
 multiple frames won't flood the set with duplicates.
 */
-void PhysicsSystem::BasicCollisionDetection() 
-{
+void PhysicsSystem::BasicCollisionDetection() {
+	std::vector<GameObject*>::const_iterator first;
+	std::vector<GameObject*>::const_iterator last;
+	gameWorld.GetObjectIterators(first, last);
+
+	for (auto i = first; i != last; ++i) {
+		if ((*i)->GetPhysicsObject() == nullptr) {
+			continue;
+		}
+		for (auto j = i + 1; j != last; ++j) {
+			if ((*j)->GetPhysicsObject() == nullptr) {
+				continue;
+			}
+
+			CollisionDetection::CollisionInfo info;
+
+			if (CollisionDetection::ObjectIntersection(*i, *j, info)) {
+				ImpulseResolveCollision(*info.a, *info.b, info.point);
+				info.framesLeft = numCollisionFrames;
+				allCollisions.insert(info);
+			}
+		}
+	}
 }
 
 /*
@@ -208,9 +229,74 @@ In tutorial 5, we start determining the correct response to a collision,
 so that objects separate back out. 
 
 */
-void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, CollisionDetection::ContactPoint& p) const 
-{
+void PhysicsSystem::ImpulseResolveCollision(
+	GameObject& a, GameObject& b,
+	CollisionDetection::ContactPoint& p) const {
 
+	PhysicsObject* physA = a.GetPhysicsObject();
+	PhysicsObject* physB = b.GetPhysicsObject();
+
+	Transform& transformA = a.GetTransform();
+	Transform& transformB = b.GetTransform();
+
+	float totalMass = physA->GetInverseMass() + physB->GetInverseMass();
+
+	if (totalMass == 0) {
+		return; // 两个静态物体？？
+	}
+
+	// 使用投影方法将物体分开（按质量比例）
+	transformA.SetPosition(transformA.GetPosition() -
+		(p.normal * p.penetration * (physA->GetInverseMass() / totalMass)));
+
+	transformB.SetPosition(transformB.GetPosition() +
+		(p.normal * p.penetration * (physB->GetInverseMass() / totalMass)));
+
+	// 计算相对位置（碰撞点相对于物体中心）
+	Vector3 relativeA = p.localA;
+	Vector3 relativeB = p.localB;
+
+	// 计算碰撞点的角速度贡献
+	Vector3 angVelocityA =
+		Vector::Cross(physA->GetAngularVelocity(), relativeA);
+	Vector3 angVelocityB =
+		Vector::Cross(physB->GetAngularVelocity(), relativeB);
+
+	// 计算碰撞点的总速度（线速度 + 角速度贡献）
+	Vector3 fullVelocityA = physA->GetLinearVelocity() + angVelocityA;
+	Vector3 fullVelocityB = physB->GetLinearVelocity() + angVelocityB;
+
+	// 计算相对碰撞速度
+	Vector3 contactVelocity = fullVelocityB - fullVelocityA;
+
+	// 计算法线方向的相对速度
+	float impulseForce = Vector::Dot(contactVelocity, p.normal);
+
+	// 计算惯性张量的影响
+	Vector3 inertiaA = Vector::Cross(physA->GetInertiaTensor() *
+		Vector::Cross(relativeA, p.normal), relativeA);
+	Vector3 inertiaB = Vector::Cross(physB->GetInertiaTensor() *
+		Vector::Cross(relativeB, p.normal), relativeB);
+
+	float angularEffect = Vector::Dot(inertiaA + inertiaB, p.normal);
+
+	// 恢复系数（硬编码为0.66以耗散一些动能）
+	float cRestitution = 0.66f;
+
+	// 计算冲量大小 J
+	float j = (-(1.0f + cRestitution) * impulseForce) /
+		(totalMass + angularEffect);
+
+	// 计算完整的冲量向量
+	Vector3 fullImpulse = p.normal * j;
+
+	// 应用线冲量（方向相反）
+	physA->ApplyLinearImpulse(-fullImpulse);
+	physB->ApplyLinearImpulse(fullImpulse);
+
+	// 应用角冲量
+	physA->ApplyAngularImpulse(Vector::Cross(relativeA, -fullImpulse));
+	physB->ApplyAngularImpulse(Vector::Cross(relativeB, fullImpulse));
 }
 
 /*
