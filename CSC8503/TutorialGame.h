@@ -18,7 +18,7 @@ namespace NCL {
 		public:
 			TutorialGame(GameWorld& gameWorld, GameTechRendererInterface& renderer, PhysicsSystem& physics);
 			~TutorialGame();
-
+			void BridgeConstraintTest();
 			virtual void UpdateGame(float dt);
 
 		protected:

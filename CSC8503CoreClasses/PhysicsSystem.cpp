@@ -68,8 +68,86 @@ being at a low rate.
 int realHZ		= idealHZ;
 float realDT	= idealDT;
 
-void PhysicsSystem::Update(float dt) 
-{	
+//void PhysicsSystem::Update(float dt) 
+//{	
+//	if (Window::GetKeyboard()->KeyPressed(KeyCodes::B)) {
+//		useBroadPhase = !useBroadPhase;
+//		std::cout << "Setting broadphase to " << useBroadPhase << std::endl;
+//	}
+//	if (Window::GetKeyboard()->KeyPressed(KeyCodes::N)) {
+//		useSimpleContainer = !useSimpleContainer;
+//		std::cout << "Setting broad container to " << useSimpleContainer << std::endl;
+//	}
+//	if (Window::GetKeyboard()->KeyPressed(KeyCodes::I)) {
+//		constraintIterationCount--;
+//		std::cout << "Setting constraint iterations to " << constraintIterationCount << std::endl;
+//	}
+//	if (Window::GetKeyboard()->KeyPressed(KeyCodes::O)) {
+//		constraintIterationCount++;
+//		std::cout << "Setting constraint iterations to " << constraintIterationCount << std::endl;
+//	}
+//
+//	dTOffset += dt; //We accumulate time delta here - there might be remainders from previous frame!
+//
+//	GameTimer t;
+//	t.GetTimeDeltaSeconds();
+//
+//	if (useBroadPhase) {
+//		UpdateObjectAABBs();
+//	}
+//	int iteratorCount = 0;
+//	while(dTOffset > realDT) {
+//		IntegrateAccel(realDT); //Update accelerations from external forces
+//		if (useBroadPhase) {
+//			BroadPhase();
+//			NarrowPhase();
+//		}
+//		else {
+//			BasicCollisionDetection();
+//		}
+//
+//		//This is our simple iterative solver - 
+//		//we just run things multiple times, slowly moving things forward
+//		//and then rechecking that the constraints have been met		
+//		float constraintDt = realDT /  (float)constraintIterationCount;
+//		for (int i = 0; i < constraintIterationCount; ++i) {
+//			UpdateConstraints(constraintDt);	
+//		}
+//		IntegrateVelocity(realDT); //update positions from new velocity changes
+//
+//		dTOffset -= realDT;
+//		iteratorCount++;
+//	}
+//
+//	ClearForces();	//Once we've finished with the forces, reset them to zero
+//
+//	UpdateCollisionList(); //Remove any old collisions
+//
+//	t.Tick();
+//	float updateTime = t.GetTimeDeltaSeconds();
+//
+//	//Uh oh, physics is taking too long...
+//	if (updateTime > realDT) {
+//		realHZ /= 2;
+//		realDT *= 2;
+//		std::cout << "Dropping iteration count due to long physics time...(now " << realHZ << ")\n";
+//	}
+//	else if(dt*2 < realDT) { //we have plenty of room to increase iteration count!
+//		int temp = realHZ;
+//		realHZ *= 2;
+//		realDT /= 2;
+//
+//		if (realHZ > idealHZ) {
+//			realHZ = idealHZ;
+//			realDT = idealDT;
+//		}
+//		if (temp != realHZ) {
+//			std::cout << "Raising iteration count due to short physics time...(now " << realHZ << ")\n";
+//		}
+//	}
+//}
+void PhysicsSystem::Update(float dt) {
+	// —— 调试按键 —— 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::B)) {
 		useBroadPhase = !useBroadPhase;
 		std::cout << "Setting broadphase to " << useBroadPhase << std::endl;
@@ -80,6 +158,9 @@ void PhysicsSystem::Update(float dt)
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::I)) {
 		constraintIterationCount--;
+		if (constraintIterationCount < 1) {
+			constraintIterationCount = 1;
+		}
 		std::cout << "Setting constraint iterations to " << constraintIterationCount << std::endl;
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::O)) {
@@ -87,17 +168,24 @@ void PhysicsSystem::Update(float dt)
 		std::cout << "Setting constraint iterations to " << constraintIterationCount << std::endl;
 	}
 
-	dTOffset += dt; //We accumulate time delta here - there might be remainders from previous frame!
+	// 累积时间（可能会有上一帧剩下的时间）
+	dTOffset += dt;
 
 	GameTimer t;
-	t.GetTimeDeltaSeconds();
+	t.GetTimeDeltaSeconds(); // reset timer
 
 	if (useBroadPhase) {
 		UpdateObjectAABBs();
 	}
-	int iteratorCount = 0;
-	while(dTOffset > realDT) {
-		IntegrateAccel(realDT); //Update accelerations from external forces
+
+	int iterationCount = 0;
+
+	// —— 固定时间步长的物理更新循环 —— 
+	while (dTOffset >= realDT) {
+		// 1) 用 realDT 积分加速度（外力 -> 速度变化）
+		IntegrateAccel(realDT);
+
+		// 2) 碰撞检测
 		if (useBroadPhase) {
 			BroadPhase();
 			NarrowPhase();
@@ -106,33 +194,36 @@ void PhysicsSystem::Update(float dt)
 			BasicCollisionDetection();
 		}
 
-		//This is our simple iterative solver - 
-		//we just run things multiple times, slowly moving things forward
-		//and then rechecking that the constraints have been met		
-		float constraintDt = realDT /  (float)constraintIterationCount;
+		// 3) 约束迭代求解
+		//    把 realDT 再划分成多次更小的时间步来更新约束
+		float constraintDt = realDT / (float)constraintIterationCount;
 		for (int i = 0; i < constraintIterationCount; ++i) {
-			UpdateConstraints(constraintDt);	
+			UpdateConstraints(constraintDt);
 		}
-		IntegrateVelocity(realDT); //update positions from new velocity changes
 
+		// 4) 用 realDT 积分速度（速度 -> 位置变化）
+		IntegrateVelocity(realDT);
+
+		// 5) 扣掉这一次用掉的时间
 		dTOffset -= realDT;
-		iteratorCount++;
+		iterationCount++;
 	}
 
-	ClearForces();	//Once we've finished with the forces, reset them to zero
-
-	UpdateCollisionList(); //Remove any old collisions
+	// 一帧结束后：
+	ClearForces();        // 清空所有力
+	UpdateCollisionList();// 清理旧碰撞信息
 
 	t.Tick();
 	float updateTime = t.GetTimeDeltaSeconds();
 
-	//Uh oh, physics is taking too long...
+	// —— 自适应 realDT（原框架自带逻辑，保留即可）——
 	if (updateTime > realDT) {
 		realHZ /= 2;
 		realDT *= 2;
-		std::cout << "Dropping iteration count due to long physics time...(now " << realHZ << ")\n";
+		std::cout << "Dropping iteration count due to long physics time...(now "
+			<< realHZ << ")\n";
 	}
-	else if(dt*2 < realDT) { //we have plenty of room to increase iteration count!
+	else if (dt * 2 < realDT) {
 		int temp = realHZ;
 		realHZ *= 2;
 		realDT /= 2;
@@ -142,11 +233,11 @@ void PhysicsSystem::Update(float dt)
 			realDT = idealDT;
 		}
 		if (temp != realHZ) {
-			std::cout << "Raising iteration count due to short physics time...(now " << realHZ << ")\n";
+			std::cout << "Raising iteration count due to short physics time...(now "
+				<< realHZ << ")\n";
 		}
 	}
 }
-
 /*
 Later on we're going to need to keep track of collisions
 across multiple frames, so we store them in a set.

@@ -194,6 +194,8 @@ void TutorialGame::InitWorld() {
 	InitGameExamples();
 
 	AddFloorToWorld(Vector3(0, -20, 0));
+	BridgeConstraintTest();
+	
 }
 
 /*
@@ -534,4 +536,56 @@ void TutorialGame::DebugObjectMovement() {
 			selectionObject->GetPhysicsObject()->AddForce(Vector3(0, -10, 0));
 		}
 	}
+}
+
+
+void TutorialGame::BridgeConstraintTest() {
+	Vector3 cubeSize = Vector3(2, 2, 2);    // 方块半尺寸（实际大小 4x4x4）
+
+	float invCubeMass = 1.0f;              // 中间节点的“逆质量” (1/mass)
+	int   numLinks = 10;                // 中间方块数量
+	float cubeDistance = 10.0f;             // 相邻方块之间的距离
+	float maxDistance = 12.0f;             // 约束允许的最大距离（略大于 cubeDistance）
+
+	// 把桥放在原点附近，略微高于地板（地板 y = -20）
+	Vector3 startPos = Vector3(-50, 30, 0);  // 从左往右拉一条链子
+
+	// 左端固定块（inverse mass = 0）
+	GameObject* start = AddCubeToWorld(
+		startPos,
+		cubeSize,
+		0.0f
+	);
+
+	// 右端固定块
+	GameObject* end = AddCubeToWorld(
+		startPos + Vector3((numLinks + 1) * cubeDistance, 0, 0),
+		cubeSize,
+		0.0f
+	);
+
+	GameObject* previous = start;
+
+	// 中间的活动方块 + 每段之间的 PositionConstraint
+	for (int i = 0; i < numLinks; ++i) {
+		GameObject* block = AddCubeToWorld(
+			startPos + Vector3((i + 1) * cubeDistance, 0, 0),
+			cubeSize,
+			invCubeMass        // 有质量的中间节
+		);
+
+		PositionConstraint* constraint =
+			new PositionConstraint(previous, block, maxDistance);
+
+		// 注意这里用的是 world .AddConstraint（不是 ->）
+		world.AddConstraint(constraint);
+
+		previous = block;
+	}
+
+	// 最后一节与右端固定块的约束
+	PositionConstraint* finalConstraint =
+		new PositionConstraint(previous, end, maxDistance);
+
+	world.AddConstraint(finalConstraint);
 }
