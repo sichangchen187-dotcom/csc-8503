@@ -1,4 +1,4 @@
-#include "TutorialGame.h"
+﻿#include "TutorialGame.h"
 #include "GameWorld.h"
 #include "PhysicsSystem.h"
 #include "PhysicsObject.h"
@@ -21,7 +21,7 @@
 #include "GameTechRendererInterface.h"
 
 #include "Ray.h"
-
+#define PI 3.14159265358979323846f
 using namespace NCL;
 using namespace CSC8503;
 
@@ -84,20 +84,88 @@ void TutorialGame::UpdateGame(float dt) {
 	if (!inSelectionMode) {
 		world.GetMainCamera().UpdateCamera(dt);
 	}
+	if (playerObject) {
+		const float moveForce = 30.0f;   // 可以自己调大小
+
+		Camera& cam = world.GetMainCamera();
+
+		// 从相机矩阵里取出 forward / right
+		Matrix4 view = cam.BuildViewMatrix();
+		Matrix4 camWorld = Matrix::Inverse(view);
+
+		Vector3 forward = -Vector3(camWorld.GetColumn(2)); // 相机看向的方向
+		Vector3 right = Vector3(camWorld.GetColumn(0)); // 相机右边的方向
+
+		// 只在地面平面移动
+		forward.y = 0.0f;
+		right.y = 0.0f;
+
+		forward = Vector::Normalise(forward);
+		right = Vector::Normalise(right);
+
+		Vector3 moveDir(0, 0, 0);
+
+		// 👇 这里就是“相机相对”的 WSAD 了
+		if (Window::GetKeyboard()->KeyDown(KeyCodes::W)) {
+			moveDir += forward;   // 朝相机正前方
+		}
+		if (Window::GetKeyboard()->KeyDown(KeyCodes::S)) {
+			moveDir -= forward;   // 朝相机后方
+		}
+		if (Window::GetKeyboard()->KeyDown(KeyCodes::A)) {
+			moveDir -= right;     // 向相机左侧
+		}
+		if (Window::GetKeyboard()->KeyDown(KeyCodes::D)) {
+			moveDir += right;     // 向相机右侧
+		}
+
+
+		if (Vector::LengthSquared(moveDir) > 0.0f) {
+			moveDir = Vector::Normalise(moveDir);
+
+			// 推猫
+			playerObject->GetPhysicsObject()->AddForce(moveDir * moveForce);
+
+			//// 让猫朝着自己的运动方向转头
+			//float yawRad = atan2(moveDir.x, moveDir.z);     // 视情况 +/- 号微调
+			//float yawDeg = yawRad * 180.0f / PI;
+
+			//Quaternion catRot = Quaternion::EulerAnglesToQuaternion(0.0f, yawDeg, 0.0f);
+			//playerObject->GetTransform().SetOrientation(catRot);
+		}
+		// ====== 这里开始：猫头跟着鼠标（相机 yaw）转 ======
+		float camYaw = cam.GetYaw();
+
+		// 视模型而定，之前你是“背对屏幕才对”，所以加 180 度：
+		float catYaw = camYaw + 180.0f;   // 如果反了就去掉 / 改成 -180.0f 试试
+
+		Quaternion catRot = Quaternion::EulerAnglesToQuaternion(0.0f, catYaw, 0.0f);
+		playerObject->GetTransform().SetOrientation(catRot);
+		// ====== 猫头控制结束 ======
+	}
 	if (lockedObject != nullptr) {
+		// 先让相机控制器（鼠标）更新 yaw / pitch
+	// （上面已经在 !inSelectionMode 时调用了 UpdateCamera(dt)）
+
+		Camera& cam = world.GetMainCamera();
+
+		// 根据当前相机的 yaw / pitch 算出“朝向”向量
+		Matrix4 view = cam.BuildViewMatrix();
+		Matrix4 camWorld = Matrix::Inverse(view);
+		Vector3 forward = -Vector3(camWorld.GetColumn(2)); // 相机朝向（摄像机看向的方向）
+
 		Vector3 objPos = lockedObject->GetTransform().GetPosition();
-		Vector3 camPos = objPos + lockedOffset;
 
-		Matrix4 temp = Matrix::View(camPos, objPos, Vector3(0,1,0));
+		// 你可以用 lockedOffset 里面的 y / z 定义高度和距离，
+		// 或者直接写死一个你觉得舒服的值：
+		float height = 3.0f;   // 类似你原来 lockedOffset.y
+		float dist = 12.0f;   // 类似 lockedOffset.z 的绝对值
 
-		Matrix4 modelMat = Matrix::Inverse(temp);
+		// 把摄像机放在“猫的后方 dist 距离，再往上抬 height”
+		Vector3 camPos = objPos - Vector::Normalise(forward) * dist + Vector3(0, height, 0);
 
-		Quaternion q(modelMat);
-		Vector3 angles = q.ToEuler(); //nearly there now!
-
-		world.GetMainCamera().SetPosition(camPos);
-		world.GetMainCamera().SetPitch(angles.x);
-		world.GetMainCamera().SetYaw(angles.y);
+		cam.SetPosition(camPos);
+		// ⚠️ 注意：不再改 pitch / yaw，完全交给鼠标控制
 	}
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
@@ -237,8 +305,8 @@ physics worlds. You'll probably need another function for the creation of OBB cu
 GameObject* TutorialGame::AddSphereToWorld(const Vector3& position, float radius, float inverseMass) {
 	GameObject* sphere = new GameObject();
 
-	Vector3 sphereSize = Vector3(radius, radius, radius);
-	SphereVolume* volume = new SphereVolume(radius);
+	Vector3 sphereSize = Vector3(0.5, 0.5, 0.5);
+	SphereVolume* volume = new SphereVolume(0.5f);
 	sphere->SetBoundingVolume(volume);
 
 	sphere->GetTransform()
@@ -246,6 +314,9 @@ GameObject* TutorialGame::AddSphereToWorld(const Vector3& position, float radius
 		.SetPosition(position);
 
 	sphere->SetRenderObject(new RenderObject(sphere->GetTransform(), sphereMesh, checkerMaterial));
+
+	sphere->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));   // 红色 RGBA
+
 	sphere->SetPhysicsObject(new PhysicsObject(sphere->GetTransform(), sphere->GetBoundingVolume()));
 
 	sphere->GetPhysicsObject()->SetInverseMass(inverseMass);
@@ -264,7 +335,7 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 
 	cube->GetTransform()
 		.SetPosition(position)
-		.SetScale(dimensions * 2.0f);
+		.SetScale(dimensions * 3.0f);
 
 	cube->SetRenderObject(new RenderObject(cube->GetTransform(), cubeMesh, checkerMaterial));
 	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
@@ -278,11 +349,11 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 }
 
 GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
-	float meshSize		= 1.0f;
+	float meshSize		= 2.0f;
 	float inverseMass	= 0.5f;
 
 	GameObject* character = new GameObject();
-	SphereVolume* volume  = new SphereVolume(1.0f);
+	SphereVolume* volume  = new SphereVolume(2.0f);
 
 	character->SetBoundingVolume(volume);
 
@@ -294,7 +365,8 @@ GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
 	character->SetPhysicsObject(new PhysicsObject(character->GetTransform(), character->GetBoundingVolume()));
 
 	character->GetPhysicsObject()->SetInverseMass(inverseMass);
-	character->GetPhysicsObject()->InitSphereInertia();
+	
+	
 
 	world.AddGameObject(character);
 
@@ -331,7 +403,7 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
 	SphereVolume* volume = new SphereVolume(0.5f);
 	apple->SetBoundingVolume(volume);
 	apple->GetTransform()
-		.SetScale(Vector3(2, 2, 2))
+		.SetScale(Vector3(0.5, 0.5, 0.5))
 		.SetPosition(position);
 
 	apple->SetRenderObject(new RenderObject(apple->GetTransform(), bonusMesh, glassMaterial));
@@ -366,7 +438,9 @@ StateGameObject* TutorialGame::AddStateObjectToWorld(const Vector3& position) {
 }
 
 void TutorialGame::InitGameExamples() {
-	AddPlayerToWorld(Vector3(0, 5, 0));
+	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
+	lockedObject = playerObject;
+	lockedOffset = Vector3(0, 2, 0.5f);
 	AddEnemyToWorld(Vector3(5, 5, 0));
 	AddBonusToWorld(Vector3(10, 5, 0));
 }
@@ -563,24 +637,24 @@ void TutorialGame::DebugObjectMovement() {
 
 
 void TutorialGame::BridgeConstraintTest() {
-	Vector3 cubeSize = Vector3(2, 2, 2);    // �����ߴ磨ʵ�ʴ�С 4x4x4��
+	Vector3 cubeSize = Vector3(2, 2, 2);    // 方块半尺寸（实际大小 4x4x4）
 
-	float invCubeMass = 1.0f;              // �м�ڵ�ġ��������� (1/mass)
-	int   numLinks = 10;                // �м䷽������
-	float cubeDistance = 10.0f;             // ���ڷ���֮��ľ���
-	float maxDistance = 12.0f;             // Լ�������������루�Դ��� cubeDistance��
+	float invCubeMass = 1.0f;              // 中间节点的“逆质量” (1/mass)
+	int   numLinks = 10;                // 中间方块数量
+	float cubeDistance = 10.0f;             // 相邻方块之间的距离
+	float maxDistance = 12.0f;             // 约束允许的最大距离（略大于 cubeDistance）
 
-	// ���ŷ���ԭ�㸽������΢���ڵذ壨�ذ� y = -20��
-	Vector3 startPos = Vector3(-50, 30, 0);  // ����������һ������
+	// 把桥放在原点附近，略微高于地板（地板 y = -20）
+	Vector3 startPos = Vector3(-50, 30, 0);  // 从左往右拉一条链子
 
-	// ��˹̶��飨inverse mass = 0��
+	// 左端固定块（inverse mass = 0）
 	GameObject* start = AddCubeToWorld(
 		startPos,
 		cubeSize,
 		0.0f
 	);
 
-	// �Ҷ˹̶���
+	// 右端固定块
 	GameObject* end = AddCubeToWorld(
 		startPos + Vector3((numLinks + 1) * cubeDistance, 0, 0),
 		cubeSize,
@@ -589,24 +663,24 @@ void TutorialGame::BridgeConstraintTest() {
 
 	GameObject* previous = start;
 
-	// �м�Ļ���� + ÿ��֮��� PositionConstraint
+	// 中间的活动方块 + 每段之间的 PositionConstraint
 	for (int i = 0; i < numLinks; ++i) {
 		GameObject* block = AddCubeToWorld(
 			startPos + Vector3((i + 1) * cubeDistance, 0, 0),
 			cubeSize,
-			invCubeMass        // ���������м��
+			invCubeMass        // 有质量的中间节
 		);
 
 		PositionConstraint* constraint =
 			new PositionConstraint(previous, block, maxDistance);
 
-		// ע�������õ��� world .AddConstraint������ ->��
+		// 注意这里用的是 world .AddConstraint（不是 ->）
 		world.AddConstraint(constraint);
 
 		previous = block;
 	}
 
-	// ���һ�����Ҷ˹̶����Լ��
+	// 最后一节与右端固定块的约束
 	PositionConstraint* finalConstraint =
 		new PositionConstraint(previous, end, maxDistance);
 
