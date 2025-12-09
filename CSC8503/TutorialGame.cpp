@@ -4,7 +4,9 @@
 #include "PhysicsObject.h"
 #include "RenderObject.h"
 #include "TextureLoader.h"
-
+#include <Windows.h>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 #include "PositionConstraint.h"
 #include "OrientationConstraint.h"
 #include "StateGameObject.h"
@@ -13,7 +15,10 @@
 #include "Texture.h"
 #include "Shader.h"
 #include "Mesh.h"
-
+#include <vector>
+#include <utility> 
+#include <algorithm>
+#include <cstdlib>   
 #include "Debug.h"
 
 #include "KeyboardMouseController.h"
@@ -78,12 +83,41 @@ TutorialGame::~TutorialGame()	{
 
 void TutorialGame::UpdateGame(float dt) {
 	
+	if (!gameStarted) {
+		Debug::Print("Press SPACE to start!", Vector2(35, 40), Debug::YELLOW);
+		Debug::Print("Use WASD to move, mouse to look", Vector2(28, 46), Debug::WHITE);
+
+		if (Window::GetKeyboard()->KeyPressed(KeyCodes::SPACE)) {
+			gameStarted = true;
+			gameTimer = 60.0f;   // 真正开始计时从 60 开始
+		}
+		return; // ⭐ 没开始时，不要更新任何游戏逻辑
+	}
+	if (!gameOver) {
+		gameTimer -= dt;
+		if (gameTimer <= 0.0f) {
+			gameTimer = 0.0f;
+			gameOver = true;    // ⏰ 时间到
+		}
+	}
+	if (gameOver) {
+		Debug::Print("TIME UP!", Vector2(42, 40), Debug::RED);
+		Debug::Print("Final Score: " + std::to_string(score),
+			Vector2(38, 46), Debug::YELLOW);
+		Debug::Print("Press R to Restart", Vector2(36, 52), Debug::WHITE);
+		if (Window::GetKeyboard()->KeyPressed(KeyCodes::R)) {
+			InitWorld(); // 重新生成迷宫、重置计时/分数
+		}
+		return; // ⭐ 游戏结束后，不再更新移动、物理等
+	}
+
 	if (testStateObject) {
 		testStateObject->Update(dt);
 	}
 	if (!inSelectionMode) {
 		world.GetMainCamera().UpdateCamera(dt);
 	}
+	
 	if (playerObject) {
 		const float moveForce = 30.0f;   // 可以自己调大小
 
@@ -166,6 +200,11 @@ void TutorialGame::UpdateGame(float dt) {
 
 		cam.SetPosition(camPos);
 		// ⚠️ 注意：不再改 pitch / yaw，完全交给鼠标控制
+
+	}
+	
+	if (Window::GetKeyboard()->KeyPressed(KeyCodes::M)) {
+		showMiniMap = !showMiniMap;
 	}
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
@@ -181,10 +220,7 @@ void TutorialGame::UpdateGame(float dt) {
 		useGravity = !useGravity; //Toggle gravity!
 		physics.UseGravity(useGravity);
 	}
-	//Running certain physics updates in a consistent order might cause some
-	//bias in the calculations - the same objects might keep 'winning' the constraint
-	//allowing the other one to stretch too much etc. Shuffling the order so that it
-	//is random every frame can help reduce such bias.
+	
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		world.ShuffleConstraints(true);
 	}
@@ -236,15 +272,110 @@ void TutorialGame::UpdateGame(float dt) {
 	else {
 		Debug::Print("(G)ravity off", Vector2(5, 95), Debug::RED);
 	}
-
+	Debug::Print("Score: " + std::to_string(score), Vector2(5,100), Debug::YELLOW);
+	Debug::Print("Time: " + std::to_string((int)gameTimer), Vector2(5, 80), Debug::YELLOW);
 	SelectObject();
 	MoveSelectedObject();	
+	if (playerObject) {
+		Vector3 playerPos = playerObject->GetTransform().GetPosition();
+		float collectDist = 3.0f;                    // 碰撞判定距离，可以改大/改小
+		float collectDistSq = collectDist * collectDist;
+
+		for (auto it = bonusItems.begin(); it != bonusItems.end(); ) {
+			GameObject* ball = *it;
+
+			if (!ball) {
+				it = bonusItems.erase(it);
+				continue;
+			}
+
+			Vector3 diff = ball->GetTransform().GetPosition() - playerPos;
+
+			// 注意：NCL 的 Vector3 没有 .LengthSquared()，要用 Vector::LengthSquared
+			if (Vector::LengthSquared(diff) < collectDistSq) {
+				// 吃到球！
+				score++;
+				// 从物理世界移除这个球
+				world.RemoveGameObject(ball, true);  // 如果编译报错，看看 RemoveGameObject 的签名改一下参数
+
+				it = bonusItems.erase(it);
+			}
+			else {
+				++it;
+			}
+		}
+	}
 	
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
 		}
 	);
+	if (showMiniMap) {
+		DrawMiniMap();
+	}
+}
+void GenerateMaze(int cellsX, int cellsZ, std::vector<std::vector<int>>& outMaze) {
+	int W = cellsX * 2 + 1;
+	int H = cellsZ * 2 + 1;
+
+	outMaze.assign(H, std::vector<int>(W, 1));
+
+	auto idx = [](int cx, int cz) {
+		return std::make_pair(cz * 2 + 1, cx * 2 + 1);
+		};
+
+	std::vector<std::vector<bool>> visited(cellsZ, std::vector<bool>(cellsX, false));
+	std::vector<std::pair<int, int>> stack;
+
+	stack.emplace_back(0, 0);
+	visited[0][0] = true;
+
+	auto carveCell = [&](int cx, int cz) {
+		auto [gy, gx] = idx(cx, cz);
+		outMaze[gy][gx] = 0;
+		};
+
+	carveCell(0, 0);
+
+	while (!stack.empty()) {
+		auto [cx, cz] = stack.back();
+
+		std::vector<std::pair<int, int>> neighbours;
+		const int dx[4] = { 1,-1,0,0 };
+		const int dz[4] = { 0,0,1,-1 };
+
+		for (int i = 0; i < 4; i++) {
+			int nx = cx + dx[i];
+			int nz = cz + dz[i];
+			if (nx < 0 || nz < 0 || nx >= cellsX || nz >= cellsZ)
+				continue;
+			if (!visited[nz][nx])
+				neighbours.emplace_back(nx, nz);
+		}
+
+		if (neighbours.empty()) {
+			stack.pop_back();
+			continue;
+		}
+
+		auto [nx, nz] = neighbours[rand() % neighbours.size()];
+
+		auto [gy1, gx1] = idx(cx, cz);
+		auto [gy2, gx2] = idx(nx, nz);
+		int gyMid = (gy1 + gy2) / 2;
+		int gxMid = (gx1 + gx2) / 2;
+
+		outMaze[gy2][gx2] = 0;
+		outMaze[gyMid][gxMid] = 0;
+
+		visited[nz][nx] = true;
+		stack.emplace_back(nx, nz);
+	}
+
+	// 设置入口出口
+	outMaze[1][1] = 0;
+	outMaze[H - 2][W - 2] = 0;
 }
 
 void TutorialGame::InitCamera() {
@@ -256,24 +387,131 @@ void TutorialGame::InitCamera() {
 	lockedObject = nullptr;
 }
 
+
 void TutorialGame::InitWorld() {
+	gameStarted = false;
+	gameOver = false;
+	gameTimer = 60.0f;
 	world.ClearAndErase();
 	physics.Clear();
 
-	CreatedMixedGrid(15, 15, 3.5f, 3.5f);
+	// 分数 & 球列表重置
+	bonusItems.clear();
+	score = 0;
 
-	InitGameExamples();
+	// ---- 生成 10×10 迷宫 ----
+	mazeData.clear();
+	GenerateMaze(10, 10, mazeData);
 
-	AddFloorToWorld(Vector3(0, -20, 0));
-	BridgeConstraintTest();
-	testStateObject = AddStateObjectToWorld(Vector3(0, 10, 0));
+	float cellSize = 5.0f;           // 格子更宽
+	float wallHeight = 2.0f;
+	Vector3 dims = Vector3(1.5f, wallHeight, 1.5f);
+
+	mazeCellSize = cellSize;
+
+	for (int z = 0; z < (int)mazeData.size(); ++z) {
+		for (int x = 0; x < (int)mazeData[z].size(); ++x) {
+			if (mazeData[z][x] == 1) {
+				Vector3 pos = Vector3(x * cellSize, wallHeight, z * cellSize);
+				AddCubeToWorld(pos, dims, 0.0f);
+			}
+		}
+	}
+
+	// ---- 地板 ----
+	float totalSizeX = mazeData[0].size() * cellSize;
+	float totalSizeZ = mazeData.size() * cellSize;
+	AddFloorToWorld(Vector3(totalSizeX * 0.5f, -2.0f, totalSizeZ * 0.5f));
+
+	// ---- 玩家出生点 ----
+	Vector3 spawnPos = Vector3(1 * cellSize, 3, 1 * cellSize);
+	playerObject = AddPlayerToWorld(spawnPos);
+
+	// 相机跟随
+	lockedObject = playerObject;
+	lockedOffset = Vector3(0, 10, 20);
+
+	// ---- 在迷宫“路”上随机放一些红球 ----
+	int H = (int)mazeData.size();
+	int W = (int)mazeData[0].size();
+
+	int maxBalls = 15;  // 想要几个球可以改这个
+	int placed = 0;
+	int safety = 0;
+
+	while (placed < maxBalls && safety < 1000) {
+		safety++;
+
+		int x = rand() % W;
+		int z = rand() % H;
+
+		if (mazeData[z][x] == 0) { // 0 = 路，可以放球
+			Vector3 pos = Vector3(x * cellSize, 1.5f, z * cellSize);
+			GameObject* ball = AddBonusToWorld(pos);
+			bonusItems.push_back(ball);
+			placed++;
+		}
+	}
 }
 
-/*
+void TutorialGame::DrawMiniMap() {
+	if (mazeData.empty() || !playerObject) return;
 
-A single function to add a large immoveable cube to the bottom of our world
+	int H = (int)mazeData.size();
+	int W = (int)mazeData[0].size();
 
-*/
+	Vector3 p = playerObject->GetTransform().GetPosition();
+	int px = (int)std::round(p.x / mazeCellSize);
+	int pz = (int)std::round(p.z / mazeCellSize);
+
+	px = std::max(0, std::min(px, W - 1));
+	pz = std::max(0, std::min(pz, H - 1));
+
+	float startX = 50.0f;  // 你可以自己微调
+	float startY = 5.0f;
+	float lineStep = 1.2f;
+
+	for (int z = 0; z < H; ++z) {
+		std::string line;
+		line.reserve(W);
+
+		for (int x = 0; x < W; ++x) {
+			bool hasBallHere = false;
+
+			// 查一下这个格子有没有球
+			for (auto b : bonusItems) {
+				if (!b) continue;
+				Vector3 bp = b->GetTransform().GetPosition();
+				int bx = (int)std::round(bp.x / mazeCellSize);
+				int bz = (int)std::round(bp.z / mazeCellSize);
+				if (bx == x && bz == z) {
+					hasBallHere = true;
+					break;
+				}
+			}
+
+			if (x == px && z == pz) {
+				line.push_back('@');         // 猫
+			}
+			else if (hasBallHere) {
+				line.push_back('*');         // 球
+			}
+			else if (mazeData[z][x] == 1) {
+				line.push_back('#');         // 墙
+			}
+			else {
+				line.push_back('.');         // 路
+			}
+		}
+
+		Debug::Print(line, Vector2(startX, startY + z * lineStep), Debug::WHITE);
+	}
+
+	Debug::Print("M : Toggle Minimap",
+		Vector2(startX, startY + H * lineStep + 2.0f), Debug::YELLOW);
+}
+
+
 GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
 	GameObject* floor = new GameObject();
 
@@ -362,6 +600,7 @@ GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
 		.SetPosition(position);
 
 	character->SetRenderObject(new RenderObject(character->GetTransform(), catMesh, notexMaterial));
+	character->GetRenderObject()->SetColour(Vector4(1.0f, 0.4f, 0.7f, 1.0f));
 	character->SetPhysicsObject(new PhysicsObject(character->GetTransform(), character->GetBoundingVolume()));
 
 	character->GetPhysicsObject()->SetInverseMass(inverseMass);
@@ -403,19 +642,24 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
 	SphereVolume* volume = new SphereVolume(0.5f);
 	apple->SetBoundingVolume(volume);
 	apple->GetTransform()
-		.SetScale(Vector3(0.5, 0.5, 0.5))
+		.SetScale(Vector3(0.5f, 0.5f, 0.5f))
 		.SetPosition(position);
 
-	apple->SetRenderObject(new RenderObject(apple->GetTransform(), bonusMesh, glassMaterial));
+	// 用纯材质 + 红色
+	apple->SetRenderObject(new RenderObject(apple->GetTransform(), bonusMesh, notexMaterial));
+	apple->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1)); // 红色
+
 	apple->SetPhysicsObject(new PhysicsObject(apple->GetTransform(), apple->GetBoundingVolume()));
 
-	apple->GetPhysicsObject()->SetInverseMass(1.0f);
-	apple->GetPhysicsObject()->InitSphereInertia();
+	// 设置为静态物体，不被撞飞
+	apple->GetPhysicsObject()->SetInverseMass(0.0f);
+	// 静态物体不用惯性张量，可以不调
+	// apple->GetPhysicsObject()->InitSphereInertia();
 
 	world.AddGameObject(apple);
-
 	return apple;
 }
+
 
 StateGameObject* TutorialGame::AddStateObjectToWorld(const Vector3& position) {
 	auto* apple = new StateGameObject();

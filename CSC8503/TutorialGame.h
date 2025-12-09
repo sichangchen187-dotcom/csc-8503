@@ -26,7 +26,15 @@ namespace NCL {
 			void InitCamera();
 
 			void InitWorld();
-
+			std::vector<std::vector<int>> mazeData;
+			float mazeCellSize = 2.0f;
+			bool gameStarted = false;
+			bool gameOver = false;
+			float gameTimer = 60.0f;
+			bool showMiniMap = false;   // 是否显示小地图
+			std::vector<GameObject*> bonusItems; 
+			int score = 0;
+			void DrawMiniMap();
 			/*
 			These are some of the world/object creation functions I created when testing the functionality
 			in the module. Feel free to mess around with them to see different objects being created in different
