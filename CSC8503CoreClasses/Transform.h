@@ -31,6 +31,9 @@ namespace NCL {
 			Matrix4 GetMatrix() const {
 				return matrix;
 			}
+			Matrix3 GetWorldOrientation() const {
+				return Quaternion::RotationMatrix<Matrix3>(orientation);
+			}
 			void UpdateMatrix();
 		protected:
 			Matrix4		matrix;

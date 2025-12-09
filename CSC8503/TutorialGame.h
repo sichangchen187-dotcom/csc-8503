@@ -1,5 +1,6 @@
 #pragma once
 #include "RenderObject.h"
+#include "StateGameObject.h"
 namespace NCL {
 	class Controller;
 
@@ -55,6 +56,9 @@ namespace NCL {
 
 			PhysicsSystem& physics;
 			Controller* controller;
+
+			StateGameObject* AddStateObjectToWorld(const Vector3& position);
+			StateGameObject* testStateObject = nullptr;
 
 			bool useGravity;
 			bool inSelectionMode;

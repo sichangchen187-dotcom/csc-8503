@@ -1,5 +1,6 @@
 #pragma once
 #include "NavigationPath.h"
+#include "..\NCLCoreClasses\Vector.h"
 namespace NCL {
 	using namespace NCL::Maths;
 	namespace CSC8503 {

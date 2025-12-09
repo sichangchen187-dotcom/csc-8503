@@ -34,28 +34,19 @@ bool GameObject::GetBroadphaseAABB(Vector3&outSize) const
 	return true;
 }
 
-void GameObject::UpdateBroadphaseAABB() 
-{
+void GameObject::UpdateBroadphaseAABB() {
 	if (!boundingVolume) {
 		return;
 	}
-	switch (boundingVolume->type)
-	{
-		case VolumeType::AABB : {
-			broadphaseAABB = ((AABBVolume&)*boundingVolume).GetHalfDimensions();
-		}break;
-		case VolumeType::Sphere: {
-			float r = ((SphereVolume&)*boundingVolume).GetRadius();
-			broadphaseAABB = Vector3(r, r, r);
-		}break;
-		case VolumeType::OBB: {
-			Matrix3 mat = Quaternion::RotationMatrix<Matrix3>(transform.GetOrientation());
-			mat = Matrix::Absolute(mat);
-			Vector3 halfSizes = ((OBBVolume&)*boundingVolume).GetHalfDimensions();
-			broadphaseAABB = mat * halfSizes;
-		}break;
-		default: {
-			std::cout << "Object " << this->name << " has unsupported bounding volume type for GameObject::UpdateBroadphaseAABB()\n";
-		}
+
+	if (boundingVolume->type == VolumeType::AABB) {
+		broadphaseAABB = ((AABBVolume&)*boundingVolume).GetHalfDimensions();
+	}
+	else if (boundingVolume->type == VolumeType::Sphere) {
+		float r = ((SphereVolume&)*boundingVolume).GetRadius();
+		broadphaseAABB = Vector3(r, r, r);
+	}
+	else if (boundingVolume->type == VolumeType::OBB) {
+		broadphaseAABB = ((OBBVolume&)*boundingVolume).GetHalfDimensions();
 	}
 }

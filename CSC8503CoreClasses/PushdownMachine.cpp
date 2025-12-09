@@ -3,14 +3,14 @@
 
 using namespace NCL::CSC8503;
 
-PushdownMachine::PushdownMachine(PushdownState* initialState)
-{
-	this->initialState = initialState;
-}
-
-PushdownMachine::~PushdownMachine()
-{
-}
+//PushdownMachine::PushdownMachine(PushdownState* initialState)
+//{
+//	this->initialState = initialState;
+//}
+//
+//PushdownMachine::~PushdownMachine()
+//{
+//}
 
 bool PushdownMachine::Update(float dt) {
 	if (activeState) {

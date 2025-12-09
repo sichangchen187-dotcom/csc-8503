@@ -1,5 +1,5 @@
 #pragma once
-
+#include <functional>
 namespace NCL {
 	namespace CSC8503 {
 		class State;
