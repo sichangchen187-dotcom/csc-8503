@@ -1,4 +1,4 @@
-#include "Window.h"
+ï»¿#include "Window.h"
 #include "../NCLCoreClasses/Vector.h"
 #include "Debug.h"
 #include "Keyboard.h"
@@ -99,23 +99,26 @@ void TestPathfinding() {
     std::cout << "Total waypoints = " << c << std::endl;
 }
 
+//void DisplayPathfinding() {
+//    for (int i = 1; i < testNodes.size(); ++i) {
+//        Vector3 a = testNodes[i - 1];
+//        Vector3 b = testNodes[i];
+//
+//        Debug::DrawLine(a, b, Vector4(0, 1, 0, 1));
+//    }
+//}
 void DisplayPathfinding() {
-    for (int i = 1; i < testNodes.size(); ++i) {
-        Vector3 a = testNodes[i - 1];
-        Vector3 b = testNodes[i];
-
-        Debug::DrawLine(a, b, Vector4(0, 1, 0, 1));
-    }
+    return;
 }
-void TestPathfinding();
-void DisplayPathfinding();
+//void TestPathfinding();
+//void DisplayPathfinding();
 
 
 void TestBehaviourTree() {
     float behaviourTimer;
     float distanceToTarget;
 
-    // 1. Ñ°ÕÒÔ¿³×
+    // 1. å¯»æ‰¾é’¥åŒ™
     BehaviourAction* findKey = new BehaviourAction("FindKey",
         [&](float dt, BehaviourState state)->BehaviourState {
             if (state == Initialise) {
@@ -130,11 +133,11 @@ void TestBehaviourTree() {
                     return Success;
                 }
             }
-            return state; // ÔÚ³É¹¦Ö®Ç°½«ÊÇ'ongoing'
+            return state; // åœ¨æˆåŠŸä¹‹å‰å°†æ˜¯'ongoing'
         }
     );
 
-    // 2. Ç°Íù·¿¼ä
+    // 2. å‰å¾€æˆ¿é—´
     BehaviourAction* goToRoom = new BehaviourAction("GoToRoom",
         [&](float dt, BehaviourState state)->BehaviourState {
             if (state == Initialise) {
@@ -148,11 +151,11 @@ void TestBehaviourTree() {
                     return Success;
                 }
             }
-            return state; // ÔÚ³É¹¦Ö®Ç°½«ÊÇ'ongoing'
+            return state; // åœ¨æˆåŠŸä¹‹å‰å°†æ˜¯'ongoing'
         }
     );
 
-    // 3. ¿ªÃÅ
+    // 3. å¼€é—¨
     BehaviourAction* openDoor = new BehaviourAction("OpenDoor",
         [&](float dt, BehaviourState state)->BehaviourState {
             if (state == Initialise) {
@@ -163,7 +166,7 @@ void TestBehaviourTree() {
         }
     );
 
-    // 4. Ñ°ÕÒ±¦²Ø
+    // 4. å¯»æ‰¾å®è—
     BehaviourAction* lookForTreasure = new BehaviourAction(
         "LookForTreasure",
         [&](float dt, BehaviourState state)->BehaviourState {
@@ -184,7 +187,7 @@ void TestBehaviourTree() {
         }
     );
 
-    // 5. Ñ°ÕÒÎïÆ·
+    // 5. å¯»æ‰¾ç‰©å“
     BehaviourAction* lookForItems = new BehaviourAction(
         "LookForItems",
         [&](float dt, BehaviourState state)->BehaviourState {
@@ -205,7 +208,7 @@ void TestBehaviourTree() {
         }
     );
 
-    // ¹¹½¨ĞĞÎªÊ÷½á¹¹
+    // æ„å»ºè¡Œä¸ºæ ‘ç»“æ„
     BehaviourSequence* sequence = new BehaviourSequence("Room Sequence");
     sequence->AddChild(findKey);
     sequence->AddChild(goToRoom);
@@ -219,7 +222,7 @@ void TestBehaviourTree() {
     rootSequence->AddChild(sequence);
     rootSequence->AddChild(selection);
 
-    // ÔËĞĞĞĞÎªÊ÷5´Î
+    // è¿è¡Œè¡Œä¸ºæ ‘5æ¬¡
     for (int i = 0; i < 5; ++i) {
         rootSequence->Reset();
         behaviourTimer = 0.0f;
@@ -227,7 +230,7 @@ void TestBehaviourTree() {
         BehaviourState state = Ongoing;
         std::cout << "We're going on an adventure!\n";
         while (state == Ongoing) {
-            state = rootSequence->Execute(1.0f); // ¼ÙµÄÊ±¼ä²½³¤
+            state = rootSequence->Execute(1.0f); // å‡çš„æ—¶é—´æ­¥é•¿
         }
         if (state == Success) {
             std::cout << "What a successful adventure!\n";
@@ -243,7 +246,7 @@ class PauseScreen : public PushdownState {
 public:
     PushdownResult OnUpdate(float dt, PushdownState** newState) override {
         if (Window::GetKeyboard()->KeyPressed(KeyCodes::U)) {
-            // °´ U ½â³ıÔİÍ££¬Pop »Øµ½ GameScreen
+            // æŒ‰ U è§£é™¤æš‚åœï¼ŒPop å›åˆ° GameScreen
             std::cout << "Unpausing game!\n";
             return PushdownResult::Pop;
         }
@@ -270,13 +273,13 @@ public:
             pauseReminder += 1.0f;
         }
 
-        // P£º½øÈëÔİÍ£½çÃæ
+        // Pï¼šè¿›å…¥æš‚åœç•Œé¢
         if (Window::GetKeyboard()->KeyDown(KeyCodes::P)) {
             *newState = new PauseScreen();
             return PushdownResult::Push;
         }
 
-        // F1£º»Øµ½Ö÷²Ëµ¥£¨Pop µô GameScreen£©£¬»Ø IntroScreen
+        // F1ï¼šå›åˆ°ä¸»èœå•ï¼ˆPop æ‰ GameScreenï¼‰ï¼Œå› IntroScreen
         if (Window::GetKeyboard()->KeyDown(KeyCodes::F1)) {
             std::cout << "Returning to main menu!\n";
             return PushdownResult::Pop;
@@ -290,8 +293,11 @@ public:
     }
 
     void OnAwake() override {
-        gGameStarted = true;   // ½øÈëÓÎÏ·
-        gIsPaused = false;  // È·±£²»ÊÇÔİÍ£
+        gGameStarted = true;   // è¿›å…¥æ¸¸æˆ
+        gIsPaused = false;  // ç¡®ä¿ä¸æ˜¯æš‚åœ
+        if (g) {
+            g->ResetGame();    // â­ ç”Ÿæˆæ–°çš„è¿·å®« / çƒ / è®¡æ—¶
+        }
         std::cout << "Preparing to mine coins!\n";
     }
 
@@ -300,34 +306,61 @@ protected:
     float pauseReminder = 1.0f;
 };
 
+class HighScoreScreen : public PushdownState {
+public:
+    PushdownResult OnUpdate(float dt, PushdownState** newState) override {
+        Debug::Print("=== High Scores ===", Vector2(35, 20), Debug::YELLOW);
+
+        auto scores = g->LoadHighScores();
+        int y = 30;
+        int rank = 1;
+        for (int s : scores) {
+            Debug::Print(std::to_string(rank) + ". " + std::to_string(s),
+                Vector2(38, y), Debug::WHITE);
+            y += 5;
+            rank++;
+        }
+
+        Debug::Print("Press B to return", Vector2(38, 60), Debug::WHITE);
+
+        if (Window::GetKeyboard()->KeyPressed(KeyCodes::B)) {
+            return PushdownResult::Pop;
+        }
+        return PushdownResult::NoChange;
+    }
+};
+
+
 class IntroScreen : public PushdownState {
 public:
     PushdownResult OnUpdate(float dt, PushdownState** newState) override {
         Debug::Print("Main Menu", Vector2(40, 30), Debug::YELLOW);
-        Debug::Print("1. Start Game", Vector2(38, 40), Debug::WHITE);
-        Debug::Print("2. High Scores (WIP)", Vector2(38, 45), Debug::WHITE); // Ğéº¯Êı/´ıÌí¼Ó
+        Debug::Print("1. Start Game (Space)", Vector2(38, 40), Debug::WHITE);
+        Debug::Print("2. High Scores (Tab)", Vector2(38, 45), Debug::WHITE); // è™šå‡½æ•°/å¾…æ·»åŠ 
         Debug::Print("3. Exit (ESC)", Vector2(38, 50), Debug::WHITE);
 
         if (Window::GetKeyboard()->KeyPressed(KeyCodes::SPACE)) {
             *newState = new GameScreen();
-            return PushdownResult::Push;  // ½øÈë GameScreen
+            return PushdownResult::Push;  // è¿›å…¥ GameScreen
         }
         if (Window::GetKeyboard()->KeyPressed(KeyCodes::TAB)) {
-            // Ğéº¯ÊıÊµÏÖ£º
-            std::cout << "High Scores feature not implemented yet.\n";
-            return PushdownResult::NoChange;
+            *newState = new HighScoreScreen();
+            return PushdownResult::Push;
         }
 
         if (Window::GetKeyboard()->KeyPressed(KeyCodes::ESCAPE)) {
-            // Pop µô IntroScreen£¬±¾´Î Update ·µ»Ø false£¬ÓÎÏ·Ö÷Ñ­»·¾Í»áÍË³ö
+            // Pop æ‰ IntroScreenï¼Œæœ¬æ¬¡ Update è¿”å› falseï¼Œæ¸¸æˆä¸»å¾ªç¯å°±ä¼šé€€å‡º
             return PushdownResult::Pop;
         }
         return PushdownResult::NoChange;
     }
 
     void OnAwake() override {
-        gGameStarted = false;  // »Øµ½Ö÷²Ëµ¥£¬ÓÎÏ·²»ÔÙ¸üĞÂ
+        gGameStarted = false;  // å›åˆ°ä¸»èœå•ï¼Œæ¸¸æˆä¸å†æ›´æ–°
         gIsPaused = false;
+        if (g) {
+            g->ClearWorldForMenu();
+        }
         std::cout << "Welcome to a really awesome game!\n";
         std::cout << "Press Space To Begin or Escape to quit!\n";
     }
@@ -360,7 +393,7 @@ int main() {
      
     g = new TutorialGame(*world, *renderer, *physics);
 
-    // ---- ×´Ì¬»ú£º´Ó IntroScreen ¿ªÊ¼ ----
+    // ---- çŠ¶æ€æœºï¼šä» IntroScreen å¼€å§‹ ----
     PushdownMachine stateMachine(new IntroScreen());
 
     TestPathfinding();
@@ -376,9 +409,9 @@ int main() {
             continue; // must have hit a breakpoint or something to have a 1 second frame time!
         }
 
-        // ¸üĞÂ×´Ì¬»ú£¨Intro / Game / Pause£©
+        // æ›´æ–°çŠ¶æ€æœºï¼ˆIntro / Game / Pauseï¼‰
         if (!stateMachine.Update(dt)) {
-            // ×´Ì¬Õ»Îª¿Õ£¨±ÈÈçÔÚ Intro ÆÁ°´ÁË ESC£©£¬ÍË³öÑ­»·
+            // çŠ¶æ€æ ˆä¸ºç©ºï¼ˆæ¯”å¦‚åœ¨ Intro å±æŒ‰äº† ESCï¼‰ï¼Œé€€å‡ºå¾ªç¯
             keepRunning = false;
             break;
         }
@@ -396,8 +429,8 @@ int main() {
 
         w->SetTitle("Gametech frame time:" + std::to_string(1000.0f * dt));
 
-        // ======= ÕâÀïÊÇÕæÕıµÄÓÎÏ·Âß¼­ =======
-        // Ö»ÓĞÔÚ GameScreen ÇÒÃ»ÓĞÔİÍ£Ê±²Å¸üĞÂÓÎÏ· / ÎïÀí / Ñ°Â· / ĞĞÎªÊ÷
+        // ======= è¿™é‡Œæ˜¯çœŸæ­£çš„æ¸¸æˆé€»è¾‘ =======
+        // åªæœ‰åœ¨ GameScreen ä¸”æ²¡æœ‰æš‚åœæ—¶æ‰æ›´æ–°æ¸¸æˆ / ç‰©ç† / å¯»è·¯ / è¡Œä¸ºæ ‘
         if (gGameStarted && !gIsPaused) {
             g->UpdateGame(dt);
             /*TestBehaviourTree();*/
@@ -406,7 +439,7 @@ int main() {
             DisplayPathfinding();
         }
 
-        // äÖÈ¾¿ÉÒÔ¼´Ê¹ÔÚÔİÍ£Ê±Ò²¸üĞÂ£¬ÈÃ»­Ãæ±£³Ö£¨Ò»°ã renderer ÀïÖ»¶Á×´Ì¬£¬»áºÜ°²È«£©
+        // æ¸²æŸ“å¯ä»¥å³ä½¿åœ¨æš‚åœæ—¶ä¹Ÿæ›´æ–°ï¼Œè®©ç”»é¢ä¿æŒï¼ˆä¸€èˆ¬ renderer é‡Œåªè¯»çŠ¶æ€ï¼Œä¼šå¾ˆå®‰å…¨ï¼‰
         renderer->Update(dt);
         renderer->Render();
 

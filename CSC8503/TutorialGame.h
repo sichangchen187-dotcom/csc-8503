@@ -24,10 +24,13 @@ namespace NCL {
 			void ResetGame() {
 				InitWorld();
 			}
-
+			void ClearWorldForMenu();
+			// --- High Score Functions ---
+			void SaveHighScore(int newScore);
+			std::vector<int> LoadHighScores();
 		protected:
 			void InitCamera();
-
+			
 			void InitWorld();
 			std::vector<std::vector<int>> mazeData;
 			float mazeCellSize = 2.0f;

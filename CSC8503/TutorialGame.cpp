@@ -10,7 +10,7 @@
 #include "PositionConstraint.h"
 #include "OrientationConstraint.h"
 #include "StateGameObject.h"
-
+#include <fstream>
 #include "Window.h"
 #include "Texture.h"
 #include "Shader.h"
@@ -88,6 +88,7 @@ void TutorialGame::UpdateGame(float dt) {
 		if (gameTimer <= 0.0f) {
 			gameTimer = 0.0f;
 			gameOver = true;    // ⏰ 时间到
+			SaveHighScore(score);
 		}
 	}
 	if (gameOver) {
@@ -256,7 +257,7 @@ void TutorialGame::UpdateGame(float dt) {
 
 	//This year we can draw debug textures as well!
 	Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
-	Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
+	/*Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));*/
 	if (useGravity) {
 		Debug::Print("(G)ravity on", Vector2(5, 95), Debug::RED);
 	}
@@ -920,4 +921,35 @@ void TutorialGame::BridgeConstraintTest() {
 		new PositionConstraint(previous, end, maxDistance);
 
 	world.AddConstraint(finalConstraint);
+}
+void TutorialGame::SaveHighScore(int newScore) {
+	std::vector<int> scores = LoadHighScores();
+
+	scores.push_back(newScore);
+	std::sort(scores.begin(), scores.end(), std::greater<int>());
+
+	if (scores.size() > 5)
+		scores.resize(5); // 只保留前 5 名
+
+	std::ofstream file("highscore.txt");
+	for (int s : scores) file << s << "\n";
+}
+
+std::vector<int> TutorialGame::LoadHighScores() {
+	std::vector<int> scores;
+	std::ifstream file("highscore.txt");
+
+	int value;
+	while (file >> value) {
+		scores.push_back(value);
+	}
+	return scores;
+}
+void TutorialGame::ClearWorldForMenu() {
+	// 清掉所有物体和物理约束
+	world.ClearAndErase();
+	physics.Clear();
+
+	// 相机调成主菜单视角（随便给一个你喜欢的）
+	InitCamera();
 }
