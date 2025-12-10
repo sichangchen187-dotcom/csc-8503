@@ -74,7 +74,7 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 	glassMaterial.type			= MaterialType::Transparent;
 	glassMaterial.diffuseTex	= glassTex;
 
-	InitCamera();
+	
 	InitWorld();
 }
 
@@ -83,17 +83,6 @@ TutorialGame::~TutorialGame()	{
 
 void TutorialGame::UpdateGame(float dt) {
 	
-	if (!gameStarted) {
-		Debug::Print("Press SPACE to start!", Vector2(35, 40), Debug::YELLOW);
-		Debug::Print("Use WASD to move, mouse to look", Vector2(28, 46), Debug::WHITE);
-
-		if (Window::GetKeyboard()->KeyPressed(KeyCodes::SPACE)) {
-			gameStarted = true;
-			gameTimer = 60.0f;   // 真正开始计时从 60 开始
-			PlaySound(TEXT("bgm.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
-		}
-		return; // ⭐ 没开始时，不要更新任何游戏逻辑
-	}
 	if (!gameOver) {
 		gameTimer -= dt;
 		if (gameTimer <= 0.0f) {
@@ -297,7 +286,6 @@ void TutorialGame::UpdateGame(float dt) {
 			if (Vector::LengthSquared(diff) < collectDistSq) {
 				// 吃到球！
 				score++;
-				PlaySound(TEXT("coin.wav"), NULL, SND_FILENAME | SND_ASYNC);
 				// 从物理世界移除这个球
 				world.RemoveGameObject(ball, true);  // 如果编译报错，看看 RemoveGameObject 的签名改一下参数
 
@@ -392,12 +380,12 @@ void TutorialGame::InitCamera() {
 
 
 void TutorialGame::InitWorld() {
-	gameStarted = false;
+	gameStarted = true;
 	gameOver = false;
 	gameTimer = 60.0f;
 	world.ClearAndErase();
 	physics.Clear();
-
+	PlaySound(TEXT("bgm.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
 	// 分数 & 球列表重置
 	bonusItems.clear();
 	score = 0;

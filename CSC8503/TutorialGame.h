@@ -21,6 +21,9 @@ namespace NCL {
 			~TutorialGame();
 			void BridgeConstraintTest();
 			virtual void UpdateGame(float dt);
+			void ResetGame() {
+				InitWorld();
+			}
 
 		protected:
 			void InitCamera();

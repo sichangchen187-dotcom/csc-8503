@@ -30,6 +30,7 @@
 #ifdef USEOPENGL
 #include "GameTechRenderer.h"
 #define CAN_COMPILE
+TutorialGame* g = nullptr; 
 #endif
 #ifdef USEVULKAN
 #include "GameTechVulkanRenderer.h"
@@ -250,10 +251,13 @@ public:
     }
 
     void OnAwake() override {
-        gIsPaused = true; // 进入暂停状态
-        std::cout << "==== GAME PAUSED ====\n";
-        std::cout << "Press U to unpause game!\n";
+        g->ResetGame(); 
+        gIsPaused = false;  
+        std::cout << "Starting game!\n";
     }
+protected:
+    int   coinsMined = 0;
+    float pauseReminder = 1.0f;
 };
 
 class GameScreen : public PushdownState {
@@ -299,10 +303,21 @@ protected:
 class IntroScreen : public PushdownState {
 public:
     PushdownResult OnUpdate(float dt, PushdownState** newState) override {
+        Debug::Print("Main Menu", Vector2(40, 30), Debug::YELLOW);
+        Debug::Print("1. Start Game", Vector2(38, 40), Debug::WHITE);
+        Debug::Print("2. High Scores (WIP)", Vector2(38, 45), Debug::WHITE); // 虚函数/待添加
+        Debug::Print("3. Exit (ESC)", Vector2(38, 50), Debug::WHITE);
+
         if (Window::GetKeyboard()->KeyPressed(KeyCodes::SPACE)) {
             *newState = new GameScreen();
             return PushdownResult::Push;  // 进入 GameScreen
         }
+        if (Window::GetKeyboard()->KeyPressed(KeyCodes::TAB)) {
+            // 虚函数实现：
+            std::cout << "High Scores feature not implemented yet.\n";
+            return PushdownResult::NoChange;
+        }
+
         if (Window::GetKeyboard()->KeyPressed(KeyCodes::ESCAPE)) {
             // Pop 掉 IntroScreen，本次 Update 返回 false，游戏主循环就会退出
             return PushdownResult::Pop;
@@ -343,7 +358,7 @@ int main() {
     GameTechRenderer* renderer = new GameTechRenderer(*world);
 #endif
      
-    TutorialGame* g = new TutorialGame(*world, *renderer, *physics);
+    g = new TutorialGame(*world, *renderer, *physics);
 
     // ---- 状态机：从 IntroScreen 开始 ----
     PushdownMachine stateMachine(new IntroScreen());
