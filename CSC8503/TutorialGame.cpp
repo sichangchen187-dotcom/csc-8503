@@ -90,6 +90,7 @@ void TutorialGame::UpdateGame(float dt) {
 		if (Window::GetKeyboard()->KeyPressed(KeyCodes::SPACE)) {
 			gameStarted = true;
 			gameTimer = 60.0f;   // 真正开始计时从 60 开始
+			PlaySound(TEXT("bgm.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
 		}
 		return; // ⭐ 没开始时，不要更新任何游戏逻辑
 	}
@@ -105,6 +106,7 @@ void TutorialGame::UpdateGame(float dt) {
 		Debug::Print("Final Score: " + std::to_string(score),
 			Vector2(38, 46), Debug::YELLOW);
 		Debug::Print("Press R to Restart", Vector2(36, 52), Debug::WHITE);
+		/*PlaySound(NULL, 0, 0);*/
 		if (Window::GetKeyboard()->KeyPressed(KeyCodes::R)) {
 			InitWorld(); // 重新生成迷宫、重置计时/分数
 		}
@@ -295,6 +297,7 @@ void TutorialGame::UpdateGame(float dt) {
 			if (Vector::LengthSquared(diff) < collectDistSq) {
 				// 吃到球！
 				score++;
+				PlaySound(TEXT("coin.wav"), NULL, SND_FILENAME | SND_ASYNC);
 				// 从物理世界移除这个球
 				world.RemoveGameObject(ball, true);  // 如果编译报错，看看 RemoveGameObject 的签名改一下参数
 

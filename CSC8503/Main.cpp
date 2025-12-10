@@ -342,7 +342,7 @@ int main() {
 #elif defined(USEOPENGL)
     GameTechRenderer* renderer = new GameTechRenderer(*world);
 #endif
-
+     
     TutorialGame* g = new TutorialGame(*world, *renderer, *physics);
 
     // ---- 状态机：从 IntroScreen 开始 ----
@@ -385,7 +385,7 @@ int main() {
         // 只有在 GameScreen 且没有暂停时才更新游戏 / 物理 / 寻路 / 行为树
         if (gGameStarted && !gIsPaused) {
             g->UpdateGame(dt);
-            TestBehaviourTree();
+            /*TestBehaviourTree();*/
             world->UpdateWorld(dt);
             physics->Update(dt);
             DisplayPathfinding();
