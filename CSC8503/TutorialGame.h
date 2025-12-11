@@ -29,8 +29,20 @@ namespace NCL {
 			void SaveHighScore(int newScore);
 			std::vector<int> LoadHighScores();
 		protected:
+			struct EnemyInfo {
+				GameObject* object = nullptr;     // 敌人本体
+				float hitCooldown = 0.0f;        // 每次扣分后的冷却时间
+				std::vector<Vector3> path;       // 当前 A* 路径（世界坐标）
+				int pathIndex = 0;               // 正走到路径中的第几个点
+				float repathTimer = 0.0f;        // 何时重新算路径
+			};
+			bool FindPathInMazeAStar(const Vector3& startPos,
+				const Vector3& endPos,
+				std::vector<Vector3>& outPath);
+
+			void UpdateEnemies(float dt);
+			std::vector<EnemyInfo> enemies;
 			void InitCamera();
-			
 			void InitWorld();
 			std::vector<std::vector<int>> mazeData;
 			float mazeCellSize = 2.0f;

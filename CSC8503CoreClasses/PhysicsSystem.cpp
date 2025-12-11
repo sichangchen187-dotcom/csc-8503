@@ -254,8 +254,8 @@ void PhysicsSystem::UpdateCollisionList() {
 		i = allCollisions.begin(); i != allCollisions.end();) {
 
 		if ((*i).framesLeft == numCollisionFrames) {
-			i->a->OnCollisionBegin(i->b);
-			i->b->OnCollisionBegin(i->a);
+			/*i->a->OnCollisionBegin(i->b);*/
+			/*i->b->OnCollisionBegin(i->a);*/
 		}
 
 		(*i).framesLeft == (*i).framesLeft - 1;

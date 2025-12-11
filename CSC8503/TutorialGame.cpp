@@ -20,7 +20,8 @@
 #include <algorithm>
 #include <cstdlib>   
 #include "Debug.h"
-
+#include <queue>
+#include <cmath>
 #include "KeyboardMouseController.h"
 
 #include "GameTechRendererInterface.h"
@@ -297,7 +298,8 @@ void TutorialGame::UpdateGame(float dt) {
 			}
 		}
 	}
-	
+	UpdateEnemies(dt);
+
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
@@ -390,7 +392,9 @@ void TutorialGame::InitWorld() {
 	// 分数 & 球列表重置
 	bonusItems.clear();
 	score = 0;
+	enemies.clear();
 
+	
 	// ---- 生成 10×10 迷宫 ----
 	mazeData.clear();
 	GenerateMaze(10, 10, mazeData);
@@ -416,8 +420,33 @@ void TutorialGame::InitWorld() {
 	AddFloorToWorld(Vector3(totalSizeX * 0.5f, -2.0f, totalSizeZ * 0.5f));
 
 	// ---- 玩家出生点 ----
-	Vector3 spawnPos = Vector3(1 * cellSize, 3, 1 * cellSize);
+	Vector3 spawnPos = Vector3(5 * cellSize, 3, 5 * cellSize);
 	playerObject = AddPlayerToWorld(spawnPos);
+	
+	int enemyCount = 1;                 // 想要几只敌人自己改
+	int I = (int)mazeData.size();
+	int V = (int)mazeData[0].size();
+
+	for (int i = 0; i < enemyCount; ++i) {
+		int ex = 1, ez = 1;
+		int safety = 0;
+		// 找一个路格 (mazeData == 0)
+		do {
+			ex = rand() % I;
+			ez = rand() % V;
+			safety++;
+		} while (mazeData[ez][ex] == 1 && safety < 1000);
+		ex == 1, ez == 1;
+		Vector3 enemyPos = Vector3(ex * cellSize, 3.0f, ez * cellSize);
+		GameObject* e = AddEnemyToWorld(enemyPos);
+
+		EnemyInfo info;
+		info.object = e;
+		info.hitCooldown = 0.0f;
+		info.pathIndex = 0;
+		info.repathTimer = 0.0f;
+		enemies.push_back(info);
+	}
 
 	// 相机跟随
 	lockedObject = playerObject;
@@ -618,6 +647,7 @@ GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
 		.SetPosition(position);
 
 	character->SetRenderObject(new RenderObject(character->GetTransform(), enemyMesh, notexMaterial));
+	character->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1)); // 红色
 	character->SetPhysicsObject(new PhysicsObject(character->GetTransform(), character->GetBoundingVolume()));
 
 	character->GetPhysicsObject()->SetInverseMass(inverseMass);
@@ -952,4 +982,260 @@ void TutorialGame::ClearWorldForMenu() {
 
 	// 相机调成主菜单视角（随便给一个你喜欢的）
 	InitCamera();
+}
+bool TutorialGame::FindPathInMazeAStar(const Vector3& startPos,
+	const Vector3& endPos,
+	std::vector<Vector3>& outPath) {
+	outPath.clear();
+	if (mazeData.empty()) return false;
+
+	int H = (int)mazeData.size();
+	int W = (int)mazeData[0].size();
+
+	auto WorldToCell = [&](const Vector3& p, int& cx, int& cz) {
+		cx = (int)std::round(p.x / mazeCellSize);
+		cz = (int)std::round(p.z / mazeCellSize);
+		cx = std::max(0, std::min(cx, W - 1));
+		cz = std::max(0, std::min(cz, H - 1));
+		};
+
+	int sx, sz, ex, ez;
+	WorldToCell(startPos, sx, sz);
+	WorldToCell(endPos, ex, ez);
+
+	// 起点或终点在墙里就直接失败
+	if (mazeData[sz][sx] == 1 || mazeData[ez][ex] == 1) {
+		return false;
+	}
+
+	struct Node {
+		int x, z;
+		float f, g;
+	};
+	struct Cmp {
+		bool operator()(const Node& a, const Node& b) const {
+			return a.f > b.f;   // 小顶堆
+		}
+	};
+
+	const float INF = 1e9f;
+	std::vector<std::vector<float>> gCost(H, std::vector<float>(W, INF));
+	std::vector<std::vector<bool>>  closed(H, std::vector<bool>(W, false));
+	std::vector<std::vector<std::pair<int, int>>> parent(
+		H, std::vector<std::pair<int, int>>(W, { -1,-1 })
+	);
+
+	auto heuristic = [&](int x, int z) {
+		// 曼哈顿距离
+		return float(std::abs(x - ex) + std::abs(z - ez));
+		};
+
+	std::priority_queue<Node, std::vector<Node>, Cmp> open;
+
+	gCost[sz][sx] = 0.0f;
+	open.push({ sx, sz, heuristic(sx, sz), 0.0f });
+
+	const int dx[4] = { 1, -1, 0, 0 };
+	const int dz[4] = { 0, 0, 1, -1 };
+
+	bool found = false;
+
+	while (!open.empty()) {
+		Node cur = open.top();
+		open.pop();
+
+		int x = cur.x;
+		int z = cur.z;
+
+		if (closed[z][x]) continue;
+		closed[z][x] = true;
+
+		if (x == ex && z == ez) {
+			found = true;
+			break;
+		}
+
+		for (int i = 0; i < 4; ++i) {
+			int nx = x + dx[i];
+			int nz = z + dz[i];
+			if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+			if (mazeData[nz][nx] == 1) continue;   // 墙，不能走
+			if (closed[nz][nx]) continue;
+
+			float newG = gCost[z][x] + 1.0f;       // 网格，每步代价为 1
+			if (newG < gCost[nz][nx]) {
+				gCost[nz][nx] = newG;
+				parent[nz][nx] = { x, z };
+				float f = newG + heuristic(nx, nz);
+				open.push({ nx, nz, f, newG });
+			}
+		}
+	}
+
+	if (!found) return false;
+
+	// 回溯路径（格子坐标）
+	std::vector<std::pair<int, int>> cells;
+	int cx = ex, cz = ez;
+	while (!(cx == sx && cz == sz)) {
+		cells.emplace_back(cx, cz);
+		auto p = parent[cz][cx];
+		if (p.first == -1 && p.second == -1) break;
+		cx = p.first;
+		cz = p.second;
+	}
+	cells.emplace_back(sx, sz);
+	std::reverse(cells.begin(), cells.end());
+
+	// 转成世界坐标（稍微抬高一点 Y）
+	outPath.reserve(cells.size());
+	for (auto& c : cells) {
+		int x = c.first;
+		int z = c.second;
+		outPath.emplace_back(x * mazeCellSize, 3.0f, z * mazeCellSize);
+	}
+	return true;
+}
+//void TutorialGame::UpdateEnemies(float dt) {
+//	if (!playerObject) return;
+//
+//	Vector3 playerPos = playerObject->GetTransform().GetPosition();
+//
+//	const float enemySpeed = 20.0f;  // 追击速度（施加力大小，可以自己调）
+//	const float arriveDist = 0.5f;   // 认为到达当前路径点的距离
+//	const float hitDistance = 2.0f;   // 判定“碰到玩家”的距离
+//	const float hitCooldownT = 1.0f;   // 每次扣分后冷却 1s
+//	const float repathTime = 0.5f;   // 每 0.5s 重新规划路径
+//
+//	float arriveDistSq = arriveDist * arriveDist;
+//	float hitDistSq = hitDistance * hitDistance;
+//
+//	for (auto& e : enemies) {
+//		if (!e.object) continue;
+//
+//		Vector3 enemyPos = e.object->GetTransform().GetPosition();
+//
+//		// 更新冷却
+//		if (e.hitCooldown > 0.0f) {
+//			e.hitCooldown -= dt;
+//		}
+//
+//		// 定期重新规划路径
+//		e.repathTimer -= dt;
+//		if (e.repathTimer <= 0.0f) {
+//			std::vector<Vector3> newPath;
+//			if (FindPathInMazeAStar(enemyPos, playerPos, newPath)) {
+//				e.path = std::move(newPath);
+//				e.pathIndex = 0;
+//			}
+//			e.repathTimer = repathTime;
+//		}
+//
+//		// 沿路径移动
+//		if (!e.path.empty() && e.pathIndex < (int)e.path.size()) {
+//			Vector3 target = e.path[e.pathIndex];
+//			Vector3 toTarget = target - enemyPos;
+//			toTarget.y = 0.0f;
+//
+//			if (Vector::LengthSquared(toTarget) < arriveDistSq) {
+//				e.pathIndex++;
+//			}
+//			else {
+//				Vector3 dir = Vector::Normalise(toTarget);
+//				if (e.object->GetPhysicsObject()) {
+//					e.object->GetPhysicsObject()->AddForce(dir * enemySpeed);
+//				}
+//			}
+//		}
+//
+//		// 检查是否“撞到”玩家
+//		Vector3 diff = playerPos - enemyPos;
+//		diff.y = 0.0f;
+//		if (Vector::LengthSquared(diff) < hitDistSq) {
+//			if (e.hitCooldown <= 0.0f) {
+//				score = std::max(0, score - 1);   // 分数减一，不低于 0
+//				e.hitCooldown = hitCooldownT;
+//
+//				// 可选：给玩家一点击退效果
+//				if (playerObject->GetPhysicsObject()) {
+//					Vector3 knockDir = -Vector::Normalise(diff);
+//					playerObject->GetPhysicsObject()->AddForce(knockDir * 80.0f);
+//				}
+//			}
+//		}
+//	}
+//}
+void TutorialGame::UpdateEnemies(float dt) {
+	if (!playerObject) return;
+
+	Vector3 playerPos = playerObject->GetTransform().GetPosition();
+
+	const float moveSpeed = 8.0f;   // 敌人移动速度
+	const float arriveDist = 0.5f;   // 到达路径点的判定距离（调大一点，避免抖动原地）
+	const float arriveDistSq = arriveDist * arriveDist;
+
+	const float hitDistance = 3.0f;   // 与玩家的“碰撞伤害距离”
+	const float hitDistSq = hitDistance * hitDistance;
+
+	const float repathTime = 0.8f;   // 多久重新寻路一次（调大避免频繁重算）
+	const float hitCooldownT = 1.0f;   // 扣分冷却时间
+
+	for (auto& e : enemies) {
+		if (!e.object) continue;
+
+		Vector3 enemyPos = e.object->GetTransform().GetPosition();
+
+		// 冷却计时
+		if (e.hitCooldown > 0.0f) {
+			e.hitCooldown -= dt;
+		}
+
+		// 定期 + 必要时重新寻路
+		e.repathTimer -= dt;
+		if (e.repathTimer <= 0.0f ||
+			e.path.empty() ||
+			e.pathIndex >= (int)e.path.size()) {
+
+			std::vector<Vector3> newPath;
+			if (FindPathInMazeAStar(enemyPos, playerPos, newPath)) {
+				e.path = std::move(newPath);
+				e.pathIndex = 0;
+			}
+			e.repathTimer = repathTime;   // 不管成不成功，下一次再尝试
+		}
+
+		// === 按路径移动（不用 AddForce，不参与物理推墙） ===
+		if (!e.path.empty() && e.pathIndex < (int)e.path.size()) {
+			Vector3 target = e.path[e.pathIndex];
+			Vector3 toTarget = target - enemyPos;
+			toTarget.y = 0.0f;
+
+			if (Vector::LengthSquared(toTarget) < arriveDistSq) {
+				// 够近了，切换到下一个路径点
+				e.pathIndex++;
+			}
+			else {
+				Vector3 dir = Vector::Normalise(toTarget);
+				Vector3 newPos = enemyPos + dir * moveSpeed * dt;
+				newPos.y = enemyPos.y;  // 保持高度不变
+				e.object->GetTransform().SetPosition(newPos);
+			}
+		}
+
+		// === 检查是否“撞到”玩家 ===
+		Vector3 diff = playerPos - enemyPos;
+		diff.y = 0.0f;
+		if (Vector::LengthSquared(diff) < hitDistSq) {
+			if (e.hitCooldown <= 0.0f) {
+				score = std::max(0, score - 1);   // 扣一分，不低于 0
+				e.hitCooldown = hitCooldownT;
+
+				// 可选：给玩家一点击退效果
+				if (playerObject->GetPhysicsObject()) {
+					Vector3 knockDir = -Vector::Normalise(diff);
+					playerObject->GetPhysicsObject()->AddForce(knockDir * 80.0f);
+				}
+			}
+		}
+	}
 }
